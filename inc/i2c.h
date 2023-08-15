@@ -4,10 +4,12 @@
 #include <avr/delay.h>
 #include "hal.h"
 
-enum I2C_Role {
+typedef enum I2C_Role {
   MASTER,
   SLAVE
 };
+
+
 
 /*
   Logging level:
@@ -22,8 +24,10 @@ typedef struct {
   bool respondToGeneralCall;
   uint8_t loggingLevel;
   enum I2C_Role role;
-  HALPin SCLPin;
-  HALPin SDAPin;
+  HALPin sclOutPin;
+  HALPin sdaOutPin;
+  HALPin sclInPin;
+  HALPin sdaInPin;
 } I2C_Config;
 
 void I2C_init(I2C_Config* config);
@@ -31,5 +35,6 @@ void I2C_setPrintFunc(void (*ptr)(const char[]));
 void I2C_setPrintNumFunc(void (*ptr)(const int));
 void I2C_sendStartCondition(void);
 void I2C_sendStopCondition(void);
+void I2C_read(void);
 
 #endif /* I2C_H */
