@@ -32,8 +32,9 @@ void I2C_init(I2C_Config* config);
 void I2C_setPrintFunc(void (*ptr)(const char[]));
 void I2C_setPrintNumFunc(void (*ptr)(const int));
 void I2C_sendStartCondition(void);
+void I2C_sendRepeatedStartCondition(void);
 void I2C_sendStopCondition(void);
 void I2C_read(void);
-void I2C_write(uint8_t payload);
+void I2C_write(uint8_t payload, uint8_t address);
 
 #endif /* I2C_H */

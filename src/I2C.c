@@ -1,20 +1,16 @@
 #include "i2c.h"
 #define TIME_UNIT 200 // Used for duration of high and low signals
 #define SHORT_TIME_UNIT 100 // Used for delay after SDA change
+#define BYTE_SIZE 8
 
-/*
-  State transitions:
-  - LISTENING_FOR_START: START
-  - START: LISTEING_FOR_STOP, REPEATED_START
-  - LISTEING_FOR_STOP: LISTEING_FOR_START
-*/
 typedef enum State {
   LISTENING_FOR_START,
   START,
-  TRANSMITTING,
-  RECEIVING,
-  REPEATED_START,
-  LISTEING_FOR_STOP
+  RE_START,
+  READING_ADDRESS,
+  LISTENING_FOR_STOP,
+  ADDRESSED,
+  READING_PAYLOAD
 };
 
 typedef struct {
@@ -22,7 +18,8 @@ typedef struct {
   PinLevel sclPinLevel;
   PinLevel sdaPinLevel;
   uint8_t DSR[8];        // Data Shift Register - contains bits which are currently being downloaded from the I2C bus.
-  uint8_t DSRCounter;    // holds bit number in currently downloaded or uploaded byte. It can have value from 0 to 9 (this includes ACK impulse).
+  uint8_t DSRCounter;    // Holds bit number in currently downloaded or uploaded byte. It can have value from 0 to 9 (this includes ACK impulse).
+  uint8_t receivedByte;  // Holds last whole byte decoted to decimal from DSR.
 } I2C_Internal_Config;
 
 /*
@@ -88,7 +85,7 @@ void decimalToBinary(uint8_t byte, uint8_t* arr) {
     uint8_t rem = 0;
     uint8_t count = 0;
 
-    for (uint8_t i = 0; i < 8; i++) {
+    for (uint8_t i = 0; i < BYTE_SIZE; i++) {
         arr[i] = 0;
     }
 
@@ -106,7 +103,7 @@ void decimalToBinary(uint8_t byte, uint8_t* arr) {
 uint8_t binaryToDecimal(uint8_t* arr) {
     uint8_t value = 0;
     uint8_t multiplier = 1;
-    for (uint8_t i = 0; i < 8; i++) {
+    for (uint8_t i = 0; i < BYTE_SIZE; i++) {
         value += multiplier * arr[i];
         multiplier *= 2;
     }
@@ -119,61 +116,93 @@ void I2C_read(){
   PinLevel newSdaLevel = hal_pin_read(cfg->sdaInPin);
 
   switch (intCfg.state){
-  case LISTENING_FOR_START:
-    if(newSclLevel == HIGH && (intCfg.sdaPinLevel == HIGH && newSdaLevel == LOW)){
-      I2C_log("Detected START", 3);
-      intCfg.state = START;
-      I2C_log("State: START", 4);
+    case START:
+    /* First SCL falling edge after START is discarded and used for state change to READING_ADDRESS */
+    if(intCfg.sclPinLevel == HIGH && newSclLevel == LOW){
+      intCfg.state = READING_ADDRESS;
+      I2C_log("State: READING_ADDRESS", 4);
     }
     break;
 
-  case START:
-    if(cfg->role == SLAVE){
+    case RE_START:
+    /* First SCL falling edge after RE-START is discarded and used for state change to READING_PAYLOAD */
+    if(intCfg.sclPinLevel == HIGH && newSclLevel == LOW){
+      intCfg.state = READING_PAYLOAD;
+      I2C_log("State: READING_PAYLOAD", 4);
+    }
+    break;
 
-      /* First SCL falling edge after START is discarded and used for state change to RECEIVING */
-      if(intCfg.sclPinLevel == HIGH && newSclLevel == LOW){
-        intCfg.state = RECEIVING;
-        I2C_log("State: RECEIVING", 4);
+    case READING_ADDRESS:
+      if(intCfg.sclPinLevel == HIGH && newSclLevel == LOW){ // detect SCL falling edge
+        intCfg.DSR[intCfg.DSRCounter] = newSdaLevel == HIGH ? 1 : 0;
+        I2C_logNum("Received bit: ", intCfg.DSR[intCfg.DSRCounter], 4);
+        intCfg.DSRCounter++;
       }
-      
-    }
     break;
 
-  case RECEIVING:
-    if(intCfg.sclPinLevel == HIGH && newSclLevel == LOW){ // detect SCL falling edge
-      intCfg.DSR[intCfg.DSRCounter] = newSdaLevel == HIGH ? 1 : 0;
-      I2C_logNum("Received bit: ", intCfg.DSR[intCfg.DSRCounter], 4);
-      intCfg.DSRCounter++;
-    }
+    case READING_PAYLOAD:
+      if(intCfg.sclPinLevel == HIGH && newSclLevel == LOW){ // detect SCL falling edge
+        intCfg.DSR[intCfg.DSRCounter] = newSdaLevel == HIGH ? 1 : 0;
+        I2C_logNum("Received bit: ", intCfg.DSR[intCfg.DSRCounter], 4);
+        intCfg.DSRCounter++;
+      }
     break;
 
   default:
     break;
   }
 
+  if(newSclLevel == HIGH && (intCfg.sdaPinLevel == HIGH && newSdaLevel == LOW)){
+    I2C_log("Detected START", 3);
+    if(intCfg.state == LISTENING_FOR_START){
+      intCfg.state = START;
+      I2C_log("State: START", 4);
+    }
+
+    if(intCfg.state == READING_ADDRESS){
+      I2C_log("Detected RE-START", 3);
+
+      intCfg.receivedByte = binaryToDecimal(intCfg.DSR);
+      intCfg.DSRCounter = 0;
+      I2C_logNum("Received address: ", intCfg.receivedByte, 3);
+      if(intCfg.receivedByte == cfg->addr){
+        I2C_logNum("Address match: ", cfg->addr, 2);
+        intCfg.state = RE_START;
+        I2C_log("State: RE_START", 4);
+      } else {
+        intCfg.state = LISTENING_FOR_STOP;
+        I2C_log("State: LISTENING_FOR_STOP", 4);
+      }
+    }
+  }
+
   if(newSclLevel == HIGH && (intCfg.sdaPinLevel == LOW && newSdaLevel == HIGH)){
     I2C_log("Detected STOP", 3);
-    I2C_logNum("Received: ", binaryToDecimal(intCfg.DSR), 3);
+    if(intCfg.state == READING_PAYLOAD){
+      if(intCfg.DSRCounter == BYTE_SIZE){
+        intCfg.receivedByte = binaryToDecimal(intCfg.DSR);
+        I2C_logNum("Received payload: ", intCfg.receivedByte, 3);
+      } else {
+        I2C_log("Unexpected STOP", 2);
+      }
+    }
 
     intCfg.state = LISTENING_FOR_START;
     I2C_log("State: LISTENING_FOR_START", 4);
     intCfg.DSRCounter = 0;
-
-
   }
 
   intCfg.sclPinLevel = newSclLevel;
   intCfg.sdaPinLevel = newSdaLevel;
 }
 
-void I2C_write(uint8_t payload){
-  // TODO: check if the line is not busy
+void writeByte(uint8_t payload){
   I2C_logNum("Sending byte: ", payload, 2);
   decimalToBinary(payload, intCfg.DSR);
 
   I2C_sendStartCondition();
   wait();
-  for(uint8_t i = 0; i < 8; i++){
+  for(uint8_t i = 0; i < BYTE_SIZE; i++){
     I2C_logNum("Sending bit: ", intCfg.DSR[i], 4);
     if(intCfg.DSR[i] == 0){
       releasePin(cfg->sclOutPin);
@@ -191,7 +220,13 @@ void I2C_write(uint8_t payload){
       wait();
     }
   }
+}
 
+void I2C_write(uint8_t payload, uint8_t address){
+  // TODO: check if the line is not busy
+  writeByte(address);
+  I2C_sendRepeatedStartCondition();
+  writeByte(payload);
   I2C_sendStopCondition();
   wait();
 }
@@ -202,6 +237,22 @@ void I2C_sendStartCondition() {
   pullDownPin(cfg->sdaOutPin);
   wait();
   pullDownPin(cfg->sclOutPin);
+  wait();
+}
+
+/* 
+  Change of SDA LOW -> HIGH with SCL LOW 
+  Change of SDA HIGH -> LOW with SCL HIGH 
+*/
+void I2C_sendRepeatedStartCondition() {
+  I2C_log("Sending RE-START", 3);
+  pullDownPin(cfg->sclOutPin);
+  wait();
+  releasePin(cfg->sdaOutPin);
+  wait();
+  releasePin(cfg->sclOutPin);
+  wait();
+  pullDownPin(cfg->sdaOutPin);
   wait();
 }
 
