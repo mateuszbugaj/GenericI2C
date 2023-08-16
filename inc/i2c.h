@@ -9,6 +9,11 @@ typedef enum I2C_Role {
   SLAVE
 };
 
+typedef enum I2C_Data_Direction {
+  WRITE, // (0B) indicates transmission
+  READ // (1B)indicates request for data
+};
+
 /*
   Logging level:
   0 - Nothing
