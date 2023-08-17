@@ -40,6 +40,7 @@ void I2C_sendStartCondition(void);
 void I2C_sendRepeatedStartCondition(void);
 void I2C_sendStopCondition(void);
 void I2C_read(void);
-void I2C_write(uint8_t payload, uint8_t address);
+bool I2C_write(uint8_t payload);
+uint8_t I2C_last_byte();
 
 #endif /* I2C_H */
