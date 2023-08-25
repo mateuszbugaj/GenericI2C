@@ -1,6 +1,6 @@
 #include "i2c.h"
-#define TIME_UNIT 200 // Used for duration of high and low signals
-#define SHORT_TIME_UNIT 50 // Used for visual distinction (at least 1ms)
+#define TIME_UNIT 100 // Used for duration of high and low signals (at least 15ms)
+#define SHORT_TIME_UNIT 25 // Used for visual distinction (at least 1ms)
 #define BYTE_SIZE 8
 
 typedef enum State {
@@ -9,7 +9,6 @@ typedef enum State {
   RE_START,
   READING_ADDRESS,
   ACK_ADDRESS,
-  LISTENING_FOR_STOP,
   ADDRESSED,
   READING_PAYLOAD,
   ACK_PAYLOAD
@@ -73,6 +72,8 @@ void I2C_init(I2C_Config* config){
   hal_pin_direction(cfg->sdaInPin, INPUT);
 
   intCfg.state = LISTENING_FOR_START;
+  intCfg.sclPinLevel = HIGH;
+  intCfg.sdaPinLevel = HIGH;
   releasePin(cfg->sclOutPin);
   releasePin(cfg->sdaOutPin);
 }
@@ -137,8 +138,8 @@ A pooling function for slaves to listen for incoming bits and conditions impleme
 |.       .    .                  .              .         .          .                 .               .                    .  |
 |.STATE  .    .                  .              .         .          .                 .               .                    .  |
 |.       .    +READING_ADDRESS   .              .         +RE_START  .                 .               . LISTENING_FOR_START+  |
-|.       +START                  .              -(release SDA)       .                 .               +LISTENING_FOR_STOP     |
-|+LISTENING_FOR_START            +ACK_ADDRESS/LISTENING_FOR_STOP     +READING_PAYLOAD  +ACK_PAYLOAD    -(release SDA)          |
+|.       +START                  .              -(release SDA)       .                 .               +READING_PAYLOAD        |
+|+LISTENING_FOR_START            +ACK_ADDRESS                        +READING_PAYLOAD  +ACK_PAYLOAD    -(release SDA)          |
 */
 
 void I2C_read(){
@@ -169,8 +170,8 @@ void I2C_read(){
         intCfg.state = ACK_ADDRESS;
         I2C_log("State: ACK_ADDRESS", 4);
       } else {
-        intCfg.state = LISTENING_FOR_STOP;
-        I2C_log("State: LISTENING_FOR_STOP", 4);
+        intCfg.state = LISTENING_FOR_START;
+        I2C_log("State: LISTENING_FOR_START", 4);
       }
     }
     break;
@@ -178,6 +179,8 @@ void I2C_read(){
     case ACK_ADDRESS:
     /* First SCL impulse after READING_ADDRESS is to stop sending ACK (release SDA) and change state to RE_START */
     releasePin(cfg->sdaOutPin);
+    intCfg.state = READING_PAYLOAD;
+    I2C_log("State: READING_PAYLOAD", 4);
     break;
 
     case RE_START:
@@ -203,8 +206,9 @@ void I2C_read(){
     case ACK_PAYLOAD:
     /* First SCL impulse after READING_PAYLOAD is to stop sending ACK (release SDA) and change state to LISTENING_FOR_STOP */
     releasePin(cfg->sdaOutPin);
-    intCfg.state = LISTENING_FOR_STOP;
-    I2C_log("State: LISTENING_FOR_STOP", 4);
+    intCfg.DSRCounter = 0;
+    intCfg.state = READING_PAYLOAD;
+    I2C_log("State: READING_PAYLOAD", 4);
     break;
 
     default:
@@ -233,11 +237,11 @@ void I2C_read(){
     if(intCfg.sdaPinLevel == LOW && newSdaLevel == HIGH){
       I2C_log("Detected STOP", 3);
       if(intCfg.state == READING_PAYLOAD){
-        I2C_log("Unexpected STOP", 2);
-      }
-
-      if(intCfg.state == LISTENING_FOR_STOP){
-        I2C_log("Finished transmission", 2);
+        if(intCfg.DSRCounter == 0){
+          I2C_log("Finished transmission", 2);
+        } else {
+          I2C_log("Unexpected STOP", 2);
+        }
       }
 
       intCfg.state = LISTENING_FOR_START;
