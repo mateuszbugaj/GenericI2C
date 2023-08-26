@@ -1,6 +1,5 @@
 #include "i2c.h"
-#define TIME_UNIT 100 // Used for duration of high and low signals (at least 15ms)
-#define SHORT_TIME_UNIT 25 // Used for visual distinction (at least 1ms)
+#define TIME_UNIT_LIMIT 15 // (the shortest allowed time unit in ms)
 #define BYTE_SIZE 8
 
 typedef enum State {
@@ -64,6 +63,11 @@ void I2C_init(I2C_Config* config){
     return;
   }
 
+  if(cfg->timeUnit < TIME_UNIT_LIMIT){
+    I2C_logNum("I2C time unit too short: ", cfg->timeUnit, 1);
+    return;
+  }
+
   I2C_logNum("Addr", cfg->addr, 1);
 
   hal_pin_direction(cfg->sclOutPin, OUTPUT);
@@ -87,11 +91,15 @@ void pullDownPin(HALPin pin){
 }
 
 void wait() {
-  _delay_ms(TIME_UNIT);
+  for(uint8_t i = 0; i < cfg->timeUnit; i++){
+    _delay_ms(1);
+  }
 }
 
 void waitShort(){
-  _delay_ms(SHORT_TIME_UNIT);
+  for(uint8_t i = 0; i < cfg->timeUnit/4; i++){
+    _delay_ms(1);
+  }
 }
 
 void decimalToBinary(uint8_t byte, uint8_t* arr) {

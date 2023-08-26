@@ -31,6 +31,7 @@ typedef struct {
   HALPin sdaOutPin;
   HALPin sclInPin;
   HALPin sdaInPin;
+  uint8_t timeUnit;
 } I2C_Config;
 
 void I2C_init(I2C_Config* config);
