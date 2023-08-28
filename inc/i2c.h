@@ -41,7 +41,10 @@ void I2C_sendStartCondition(void);
 void I2C_sendRepeatedStartCondition(void);
 void I2C_sendStopCondition(void);
 void I2C_read(void);
+uint8_t I2C_receive(bool ack);
 bool I2C_write(uint8_t payload);
-uint8_t I2C_last_byte();
+bool I2C_writeAddress(uint8_t address, enum I2C_Data_Direction direction);
+uint8_t I2C_lastByte();
+bool I2C_newByteReceived(bool consume);
 
 #endif /* I2C_H */
