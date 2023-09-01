@@ -173,8 +173,8 @@ void I2C_read(){
     break;
 
     case READING_ADDRESS:
-    intCfg.DSR[intCfg.DSRCounter] = newSdaLevel == HIGH ? 1 : 0;
-    I2C_logNum("Received bit: ", intCfg.DSR[intCfg.DSRCounter], 4);
+    intCfg.DSR[BYTE_SIZE - 1 - intCfg.DSRCounter] = newSdaLevel == HIGH ? 1 : 0;
+    I2C_logNum("Received bit: ", intCfg.DSR[BYTE_SIZE - 1 - intCfg.DSRCounter], 4);
     intCfg.DSRCounter++;
 
     if(intCfg.DSRCounter == BYTE_SIZE){
@@ -217,7 +217,7 @@ void I2C_read(){
       intCfg.state = RESPONDING_WITH_PAYLOAD;
       I2C_log("State: RESPONDING_WITH_PAYLOAD", 4);
 
-      uint8_t bitToSend = intCfg.byteToSendArr[intCfg.byteToSendCounter];
+      uint8_t bitToSend = intCfg.byteToSendArr[BYTE_SIZE - 1 - intCfg.byteToSendCounter];
       I2C_logNum("Responding with bit: ", bitToSend, 4);
       if(bitToSend == 1){
         releasePin(cfg->sdaOutPin);
@@ -230,8 +230,8 @@ void I2C_read(){
     break;
 
     case READING_PAYLOAD:
-    intCfg.DSR[intCfg.DSRCounter] = newSdaLevel == HIGH ? 1 : 0;
-    I2C_logNum("Received bit: ", intCfg.DSR[intCfg.DSRCounter], 4);
+    intCfg.DSR[BYTE_SIZE - 1 - intCfg.DSRCounter] = newSdaLevel == HIGH ? 1 : 0;
+    I2C_logNum("Received bit: ", intCfg.DSR[BYTE_SIZE - 1 - intCfg.DSRCounter], 4);
     intCfg.DSRCounter++;
 
     if(intCfg.DSRCounter == BYTE_SIZE){
@@ -246,7 +246,7 @@ void I2C_read(){
 
     case RESPONDING_WITH_PAYLOAD:
     ;
-    uint8_t bitToSend = intCfg.byteToSendArr[intCfg.byteToSendCounter];
+    uint8_t bitToSend = intCfg.byteToSendArr[BYTE_SIZE - 1 - intCfg.byteToSendCounter];
     I2C_logNum("Responding with bit: ", bitToSend, 4);
     if(bitToSend == 1){
       releasePin(cfg->sdaOutPin);
@@ -328,7 +328,7 @@ void I2C_read(){
 
 uint8_t I2C_receive(bool ack){
     uint8_t receivedBits[8];
-    for(int i = 0; i < BYTE_SIZE; i++){
+    for(uint8_t i = BYTE_SIZE - 1; i != 255; i--){
       I2C_logNum("Reading bit", i, 4);
       releasePin(cfg->sclOutPin);
       wait();
@@ -383,7 +383,7 @@ bool I2C_write(uint8_t payload){
   decimalToBinary(payload, intCfg.DSR);
 
   pullDownPin(cfg->sdaOutPin);
-  for(uint8_t i = 0; i < BYTE_SIZE; i++){
+  for(uint8_t i = BYTE_SIZE - 1; i != 255; i--){
     I2C_logNum("Sending bit", intCfg.DSR[i], 4);
     if(intCfg.DSR[i] == 0){
       releasePin(cfg->sclOutPin);
