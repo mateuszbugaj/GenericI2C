@@ -86,6 +86,7 @@ void I2C_init(I2C_Config* config){
   intCfg.sdaPinLevel = HIGH;
   intCfg.dataDirection = WRITE;
   intCfg.newByteReceived = false;
+  intCfg.byteToSend = 0;
   releasePin(cfg->sclOutPin);
   releasePin(cfg->sdaOutPin);
 }
@@ -296,6 +297,8 @@ void I2C_read(){
     if(intCfg.sdaPinLevel == HIGH && newSdaLevel == LOW){
       I2C_log("Detected START", 3);
       if(intCfg.state == LISTENING_FOR_START || intCfg.state == READING_PAYLOAD){
+        intCfg.DSRCounter = 0;
+        intCfg.byteToSendCounter = 0;
         intCfg.dataDirection = WRITE;
         intCfg.state = START;
         I2C_log("State: START", 4);
@@ -326,17 +329,16 @@ void I2C_read(){
 uint8_t I2C_receive(bool ack){
     uint8_t receivedBits[8];
     for(int i = 0; i < BYTE_SIZE; i++){
-      I2C_logNum("Reading bit: ", i, 4);
+      I2C_logNum("Reading bit", i, 4);
       releasePin(cfg->sclOutPin);
       wait();
       PinLevel result = hal_pin_read(cfg->sdaInPin);
       if(result == HIGH){
-        I2C_logNum("Received: ", 1, 4);
         receivedBits[i] = 1;
       } else {
-        I2C_logNum("Received: ", 0, 4);
         receivedBits[i] = 0;
       }
+      I2C_logNum("Received", receivedBits[i], 4);
       pullDownPin(cfg->sclOutPin);
       wait();
     }
@@ -361,6 +363,9 @@ uint8_t I2C_receive(bool ack){
       wait();
     }
 
+    wait();
+    releasePin(cfg->sclOutPin);
+
     I2C_log("Stopped sending ACK", 4);
 
     return response;
@@ -369,16 +374,17 @@ uint8_t I2C_receive(bool ack){
 bool I2C_write(uint8_t payload){
   // TODO: check if the line is not busy
   if(cfg->role == SLAVE){
-    I2C_logNum("Byte to be send: ", payload, 2);
+    I2C_logNum("Byte to be send", payload, 2);
     decimalToBinary(payload, intCfg.byteToSendArr);
     return true;
   }
 
-  I2C_logNum("Sending byte: ", payload, 2);
+  I2C_logNum("Sending byte", payload, 2);
   decimalToBinary(payload, intCfg.DSR);
 
+  pullDownPin(cfg->sdaOutPin);
   for(uint8_t i = 0; i < BYTE_SIZE; i++){
-    I2C_logNum("Sending bit: ", intCfg.DSR[i], 4);
+    I2C_logNum("Sending bit", intCfg.DSR[i], 4);
     if(intCfg.DSR[i] == 0){
       releasePin(cfg->sclOutPin);
       wait();
@@ -403,6 +409,7 @@ bool I2C_write(uint8_t payload){
   wait();
   bool ack = hal_pin_read(cfg->sdaInPin) == LOW ? true : false;
   pullDownPin(cfg->sclOutPin);
+  // pullDownPin(cfg->sdaOutPin);
   wait();
 
   if(ack){
@@ -460,15 +467,17 @@ void I2C_sendStartCondition() {
 void I2C_sendRepeatedStartCondition() {
   I2C_log("Sending RE-START", 3);
   pullDownPin(cfg->sdaOutPin);
-  wait();
+  waitShort();
   pullDownPin(cfg->sclOutPin);
-  wait();
+  waitShort();
   releasePin(cfg->sdaOutPin);
   wait();
   releasePin(cfg->sclOutPin);
   wait();
   pullDownPin(cfg->sdaOutPin);
   wait();
+  pullDownPin(cfg->sclOutPin);
+  waitShort();
 }
 
 /* Change of SDA LOW -> HIGH with SCL HIGH */
