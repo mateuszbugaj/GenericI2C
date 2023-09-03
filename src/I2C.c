@@ -174,14 +174,15 @@ void I2C_read(){
 
     case READING_ADDRESS:
     intCfg.DSR[BYTE_SIZE - 1 - intCfg.DSRCounter] = newSdaLevel == HIGH ? 1 : 0;
-    I2C_logNum("Received bit: ", intCfg.DSR[BYTE_SIZE - 1 - intCfg.DSRCounter], 4);
+    I2C_logNum("Received bit", intCfg.DSR[BYTE_SIZE - 1 - intCfg.DSRCounter], 4);
     intCfg.DSRCounter++;
 
     if(intCfg.DSRCounter == BYTE_SIZE){
       intCfg.receivedByte = binaryToDecimal(intCfg.DSR);
       intCfg.DSRCounter = 0;
-      uint8_t addr = intCfg.receivedByte & 0b01111111;
-      enum I2C_Data_Direction direction = intCfg.receivedByte & 0b10000000;
+      uint8_t addr = intCfg.receivedByte & 0b11111110;
+      addr = (addr >> 1);
+      enum I2C_Data_Direction direction = intCfg.receivedByte & 0b00000001;
 
       I2C_logNum("Received address: ", addr, 3);
 
@@ -421,12 +422,13 @@ bool I2C_write(uint8_t payload){
 }
 
 bool I2C_writeAddress(uint8_t address, enum I2C_Data_Direction direction){
+  uint8_t addr = (address << 1); // shift left to make space for R/W bit
 
-  uint8_t addr = address;
   if(direction == READ){
+    addr |= 0x01; // Set the R/W bit to 1 for READ
     I2C_logNum("Sending address with READ", address , 2);
-    addr += 128;
   } else {
+    addr &= ~0x01; // Clear the R/W bit for WRITE
     I2C_logNum("Sending address with WRITE", address , 2);
   }
 
