@@ -1,0 +1,14 @@
+cmake_minimum_required(VERSION 3.20)
+project(GenericI2C DESCRIPTION "Software-based I2C implementation for AVR and STM32 platforms with desktop support for development.")
+
+if(TARGET_PLATFORM STREQUAL "DESKTOP")
+  add_library(GenericI2C SHARED src/I2C.c src/I2C_HAL_Desktop_Impl.cpp)
+  target_compile_definitions(GenericI2C PUBLIC DESKTOP=1)
+  target_include_directories(GenericI2C PUBLIC inc/)
+elseif(TARGET_PLATFORM STREQUAL "AVR")
+  add_avr_library(GenericI2C src/I2C.c src/I2C_HAL_AVR_Impl.c)
+  avr_target_include_directories(GenericI2C PUBLIC inc/)
+else()
+  message(FATAL_ERROR "Invalid TARGET_PLATFORM: ${TARGET_PLATFORM}")
+endif()
+
