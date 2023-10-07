@@ -1,8 +1,9 @@
-#include "i2c.h"
+#include <I2C.h>
+
 #define TIME_UNIT_LIMIT 15 // (the shortest allowed time unit in ms)
 #define BYTE_SIZE 8
 
-typedef enum State {
+typedef enum {
   LISTENING_FOR_START,
   START,
   READING_ADDRESS,
@@ -12,17 +13,17 @@ typedef enum State {
   ACK_PAYLOAD,
   RESPONDING_WITH_PAYLOAD,
   READING_ACK
-};
+} State;
 
 typedef struct {
-  enum State state;
-  PinLevel sclPinLevel;
-  PinLevel sdaPinLevel;
+  State state;
+  HAL_PinLevel sclPinLevel;
+  HAL_PinLevel sdaPinLevel;
   uint8_t DSR[8];        // Data Shift Register - contains bits which are currently being downloaded from the I2C bus.
   uint8_t DSRCounter;    // Holds bit number in currently downloaded or uploaded byte. It can have value from 0 to 9 (this includes ACK impulse).
   uint8_t receivedByte;  // Holds last whole byte decoted to decimal from DSR.
   bool newByteReceived;  // Used for pooling event
-  enum I2C_Data_Direction dataDirection;
+  I2C_Data_Direction dataDirection;
   uint8_t byteToSend;    // Byte to be sent when master asks for data
   uint8_t byteToSendCounter;
   uint8_t byteToSendArr[8];
@@ -32,24 +33,22 @@ typedef struct {
   Pointer to printing function. Used to print logs for example via USART interface.
   By default, an empty function.
 */
-void defaultPrint(const char chars[]){}
-void defaultPrintNum(const int value ){}
+void defaultPrint(char chars[]){}
+void defaultPrintNum(uint8_t value){}
 void (*printFuncPtr)(char content[]) = &defaultPrint;
-void (*printNumFuncPtr)(int value) = &defaultPrintNum;
-void I2C_setPrintFunc(void (*ptr)(const char[])){ printFuncPtr = ptr; }
-void I2C_setPrintNumFunc(void (*ptr)(const int)){ printNumFuncPtr = ptr; }
+void (*printNumFuncPtr)(uint8_t value) = &defaultPrintNum;
 
 I2C_Config* cfg;
 I2C_Internal_Config intCfg;
 
-void I2C_log(char content[], uint8_t level) {
+void I2C_log(char* content, uint8_t level) {
   if (cfg->loggingLevel >= level) {
     (*printFuncPtr)(content);
     (*printFuncPtr)("\n\r");
   }
 }
 
-void I2C_logNum(char name[], int value, uint8_t level) {
+void I2C_logNum(char name[], uint8_t value, uint8_t level) {
   if (cfg->loggingLevel >= level) {
     (*printFuncPtr)(name);
     (*printFuncPtr)(": ");
@@ -58,8 +57,23 @@ void I2C_logNum(char name[], int value, uint8_t level) {
   }
 }
 
+void releasePin(HAL_Pin* pin){
+  HAL_pinWrite(pin, LOW);
+}
+
+void pullDownPin(HAL_Pin* pin){
+  HAL_pinWrite(pin, HIGH);
+}
+
 void I2C_init(I2C_Config* config){
   cfg = config;
+
+  if(cfg->print_str != ((void *)0)){
+    printFuncPtr = cfg->print_str;
+    printNumFuncPtr = cfg->print_num;
+  } else {
+    cfg->loggingLevel = 0;
+  }
 
   I2C_log("I2C Start", 0);
   I2C_log(cfg->role==MASTER?"MASTER":"SLAVE", 1);
@@ -69,17 +83,17 @@ void I2C_init(I2C_Config* config){
     return;
   }
 
-  if(cfg->timeUnit < TIME_UNIT_LIMIT){
-    I2C_logNum("I2C time unit too short: ", cfg->timeUnit, 1);
-    return;
-  }
+  // if(cfg->timeUnit < TIME_UNIT_LIMIT){
+  //   I2C_logNum("I2C time unit too short: ", cfg->timeUnit, 1);
+  //   return;
+  // }
 
   I2C_logNum("Addr", cfg->addr, 1);
 
-  hal_pin_direction(cfg->sclOutPin, OUTPUT);
-  hal_pin_direction(cfg->sdaOutPin, OUTPUT);
-  hal_pin_direction(cfg->sclInPin, INPUT);
-  hal_pin_direction(cfg->sdaInPin, INPUT);
+  HAL_setPinDirection(cfg->sdaOutPin, OUTPUT);
+  HAL_setPinDirection(cfg->sclOutPin, OUTPUT);
+  HAL_setPinDirection(cfg->sclInPin, INPUT);
+  HAL_setPinDirection(cfg->sdaInPin, INPUT);
 
   intCfg.state = LISTENING_FOR_START;
   intCfg.sclPinLevel = HIGH;
@@ -89,14 +103,6 @@ void I2C_init(I2C_Config* config){
   intCfg.byteToSend = 0;
   releasePin(cfg->sclOutPin);
   releasePin(cfg->sdaOutPin);
-}
-
-void releasePin(HALPin pin){
-  hal_pin_write(pin, LOW);
-}
-
-void pullDownPin(HALPin pin){
-  hal_pin_write(pin, HIGH);
 }
 
 void wait() {
@@ -160,8 +166,8 @@ A pooling function for slaves to listen for incoming bits and conditions impleme
 */
 
 void I2C_read(){
-  PinLevel newSclLevel = hal_pin_read(cfg->sclInPin);
-  PinLevel newSdaLevel = hal_pin_read(cfg->sdaInPin);
+  HAL_PinLevel newSclLevel = HAL_pinRead(cfg->sclInPin);
+  HAL_PinLevel newSdaLevel = HAL_pinRead(cfg->sdaInPin);
 
   /* Clock events (SCL falling edge) */
   if(intCfg.sclPinLevel == HIGH && newSclLevel == LOW){
@@ -182,7 +188,7 @@ void I2C_read(){
       intCfg.DSRCounter = 0;
       uint8_t addr = intCfg.receivedByte & 0b11111110;
       addr = (addr >> 1);
-      enum I2C_Data_Direction direction = intCfg.receivedByte & 0b00000001;
+      I2C_Data_Direction direction = intCfg.receivedByte & 0b00000001;
 
       I2C_logNum("Received address: ", addr, 3);
 
@@ -267,7 +273,7 @@ void I2C_read(){
 
     case READING_ACK:
     ;
-    PinLevel ack = hal_pin_read(cfg->sdaInPin);
+    HAL_PinLevel ack = HAL_pinRead(cfg->sdaInPin);
     if(ack == LOW){
       I2C_log("Master responded with ACK", 3);
     } else {
@@ -333,7 +339,7 @@ uint8_t I2C_receive(bool ack){
       I2C_logNum("Reading bit", i, 4);
       releasePin(cfg->sclOutPin);
       wait();
-      PinLevel result = hal_pin_read(cfg->sdaInPin);
+      HAL_PinLevel result = HAL_pinRead(cfg->sdaInPin);
       if(result == HIGH){
         receivedBits[i] = 1;
       } else {
@@ -408,7 +414,7 @@ bool I2C_write(uint8_t payload){
   wait();
   releasePin(cfg->sclOutPin);
   wait();
-  bool ack = hal_pin_read(cfg->sdaInPin) == LOW ? true : false;
+  bool ack = HAL_pinRead(cfg->sdaInPin) == LOW ? true : false;
   pullDownPin(cfg->sclOutPin);
   // pullDownPin(cfg->sdaOutPin);
   wait();
@@ -421,7 +427,7 @@ bool I2C_write(uint8_t payload){
   return ack;
 }
 
-bool I2C_writeAddress(uint8_t address, enum I2C_Data_Direction direction){
+bool I2C_writeAddress(uint8_t address, I2C_Data_Direction direction){
   uint8_t addr = (address << 1); // shift left to make space for R/W bit
 
   if(direction == READ){
@@ -439,6 +445,7 @@ uint8_t I2C_lastByte(){
   if(cfg->role == SLAVE){
     return intCfg.receivedByte;
   }
+  return 0;
 }
 
 bool I2C_newByteReceived(bool consume){

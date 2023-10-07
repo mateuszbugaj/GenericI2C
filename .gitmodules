@@ -1,6 +1,0 @@
-[submodule "lib/HALibrary"]
-	path = lib/HALibrary
-	url = git@github.com:mateuszbugaj/HALibrary.git
-[submodule "example/writeByteATMEGA168/lib/SimpleAvrUsart"]
-	path = example/writeByteATMEGA168/lib/SimpleAvrUsart
-	url = git@github.com:mateuszbugaj/SimpleAvrUsart.git
