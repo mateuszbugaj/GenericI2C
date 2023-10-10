@@ -3,6 +3,8 @@ project(GenericI2C DESCRIPTION "Software-based I2C implementation for AVR and ST
 
 if(TARGET_PLATFORM STREQUAL "DESKTOP")
   add_library(GenericI2C SHARED src/I2C.c src/I2C_HAL_Desktop_Impl.cpp)
+  find_package(RapidJSON)
+  target_link_libraries(GenericI2C ${RapidJSON_LIBRARIES})
   target_compile_definitions(GenericI2C PUBLIC DESKTOP=1)
   target_include_directories(GenericI2C PUBLIC inc/)
 elseif(TARGET_PLATFORM STREQUAL "AVR")
