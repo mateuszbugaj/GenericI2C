@@ -1,17 +1,7 @@
 #pragma once
 #include <stdbool.h>
 
-#ifdef AVR
-// TODO: I2C should not have the delay maybe and by event-based? 
-#include <util/delay.h>
-#endif
-
 #include <I2C_HAL.h>
-
-#ifdef DESKTOP
-void _delay_ms(int x){}
-#endif
-
 
 typedef enum {
   MASTER,
@@ -40,7 +30,7 @@ typedef struct {
   HAL_Pin* sdaOutPin;
   HAL_Pin* sclInPin;
   HAL_Pin* sdaInPin;
-  uint8_t timeUnit;
+  uint32_t timeUnit;
   void (*print_str)(char[]);
   void (*print_num)(uint8_t);
 } I2C_Config;

@@ -32,6 +32,7 @@ HAL_Pin* HAL_pinSetup(HAL_Pin* newPin, uint8_t* port, uint8_t pin, HAL_PullupCon
 void HAL_setPinDirection(HAL_Pin* pin, HAL_PinDirection direction);
 void HAL_pinWrite(HAL_Pin* pin, HAL_PinLevel level);
 HAL_PinLevel HAL_pinRead(HAL_Pin* pin);
+void HAL_sleep(uint16_t ms);
 
 #ifdef DESKTOP
 void HAL_registerPin(HAL_Pin* pin, const char* name);

@@ -83,10 +83,10 @@ void I2C_init(I2C_Config* config){
     return;
   }
 
-  // if(cfg->timeUnit < TIME_UNIT_LIMIT){
-  //   I2C_logNum("I2C time unit too short: ", cfg->timeUnit, 1);
-  //   return;
-  // }
+  if(cfg->timeUnit < TIME_UNIT_LIMIT){
+    I2C_logNum("I2C time unit too short: ", cfg->timeUnit, 1);
+    return;
+  }
 
   I2C_logNum("Addr", cfg->addr, 1);
 
@@ -106,15 +106,11 @@ void I2C_init(I2C_Config* config){
 }
 
 void wait() {
-  for(uint8_t i = 0; i < cfg->timeUnit; i++){
-    _delay_ms(1);
-  }
+  HAL_sleep(cfg->timeUnit);
 }
 
 void waitShort(){
-  for(uint8_t i = 0; i < cfg->timeUnit/4; i++){
-    _delay_ms(1);
-  }
+  HAL_sleep(cfg->timeUnit/4);
 }
 
 void decimalToBinary(uint8_t byte, uint8_t* arr) {
@@ -187,7 +183,6 @@ void I2C_read(){
       intCfg.receivedByte = binaryToDecimal(intCfg.DSR);
       intCfg.DSRCounter = 0;
       uint8_t addr = intCfg.receivedByte & 0b11111110;
-      addr = (addr >> 1);
       I2C_Data_Direction direction = intCfg.receivedByte & 0b00000001;
 
       I2C_logNum("Received address: ", addr, 3);

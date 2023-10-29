@@ -6,6 +6,7 @@
 #include <sstream>
 #include <iomanip>
 #include <fstream>
+#include <unistd.h>
 
 #include <rapidjson/document.h>
 #include <rapidjson/ostreamwrapper.h>
@@ -210,11 +211,9 @@ void HAL_pinWrite(HAL_Pin* pin, HAL_PinLevel level) {
 // Read the last line from the file and parse the pin states from it
 HAL_PinLevel HAL_pinRead(HAL_Pin* pin){
   if(pin->direction == OUTPUT){
-    std::cout << "Reading from an output pin. Returning LOW.\n";
+    std::cout << "WARNING: Reading from an output pin. Returning LOW.\n";
     return HAL_PinLevel::LOW;
   }
-
-  printf("Reading from input pin %d\n", pin->pin);
 
   // Get last line of the file
   std::string lastLine = getLastLineFromFile(OUTPUT_FILE);
@@ -237,7 +236,11 @@ HAL_PinLevel HAL_pinRead(HAL_Pin* pin){
     }
   }
 
-  std::cout << "Pin not found in the map. Returning LOW.\n";
+  std::cout << "WARNING: Pin not found in the map. Returning LOW.\n";
 
   return HAL_PinLevel::LOW;
+}
+
+void HAL_sleep(uint16_t ms){
+  usleep(ms * 1000);
 }
