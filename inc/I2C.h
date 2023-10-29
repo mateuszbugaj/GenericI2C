@@ -32,12 +32,10 @@ typedef struct {
   HAL_Pin* sdaInPin;
   uint32_t timeUnit;
   void (*print_str)(char[]);
-  void (*print_num)(uint8_t);
+  void (*print_num)(uint16_t);
 } I2C_Config;
 
 void I2C_init(I2C_Config* config);
-void I2C_setPrintFunc(void (*ptr)(const char[]));
-void I2C_setPrintNumFunc(void (*ptr)(const int));
 void I2C_sendStartCondition(void);
 void I2C_sendRepeatedStartCondition(void);
 void I2C_sendStopCondition(void);

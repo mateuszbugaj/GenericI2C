@@ -34,9 +34,9 @@ typedef struct {
   By default, an empty function.
 */
 void defaultPrint(char chars[]){}
-void defaultPrintNum(uint8_t value){}
+void defaultPrintNum(uint16_t value){}
 void (*printFuncPtr)(char content[]) = &defaultPrint;
-void (*printNumFuncPtr)(uint8_t value) = &defaultPrintNum;
+void (*printNumFuncPtr)(uint16_t value) = &defaultPrintNum;
 
 I2C_Config* cfg;
 I2C_Internal_Config intCfg;
@@ -48,7 +48,7 @@ void I2C_log(char* content, uint8_t level) {
   }
 }
 
-void I2C_logNum(char name[], uint8_t value, uint8_t level) {
+void I2C_logNum(char name[], uint16_t value, uint8_t level) {
   if (cfg->loggingLevel >= level) {
     (*printFuncPtr)(name);
     (*printFuncPtr)(": ");
