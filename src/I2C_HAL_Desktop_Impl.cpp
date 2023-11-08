@@ -39,7 +39,7 @@ std::string getCurrentTimestamp() {
   return ss.str();
 }
 
-HAL_Pin* HAL_pinSetup(HAL_Pin* newPin, uint8_t* port, uint8_t pin, HAL_PullupConfig pullup){
+HAL_Pin* HAL_pinSetup(HAL_Pin* newPin, uint16_t* port, uint8_t pin, HAL_PullupConfig pullup){
   newPin->port = port;
   newPin->pin = pin;
   newPin->pullup = pullup;
