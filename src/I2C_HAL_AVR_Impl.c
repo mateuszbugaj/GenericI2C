@@ -2,37 +2,35 @@
 #include <avr/io.h>
 #include <util/delay.h>
 #include <I2C_HAL.h>
+#include <I2C_HAL_AVR.h>
 
-HAL_Pin* HAL_pinSetup(HAL_Pin* newPin, uint16_t* port, uint8_t pin, HAL_PullupConfig pullup){
-  newPin->port = port;
-  newPin->pin = pin;
-  newPin->pullup = pullup;
-  newPin->direction = OUTPUT;
-  newPin->level = LOW;
+HAL_Pin* HAL_pinSetup(HAL_Pin* newPin, uint8_t* portRegister, uint8_t* pinRegister, uint8_t pinNumber, uint8_t* ddRegister){
+  newPin->portRegister = portRegister;
+  newPin->pinRegister = pinRegister;
+  newPin->pinNumber = pinNumber;
+  newPin->ddRegister = ddRegister;
   return newPin;
 }
 
 void HAL_setPinDirection(HAL_Pin* pin, HAL_PinDirection direction){
   if (direction == OUTPUT) {
-    *(pin->port - 1) |= (1 << pin->pin); // DDRx is one address below PORTx
+    *(pin->ddRegister) |= (1 << pin->pinNumber);
   } else {
-    *(pin->port - 1) &= ~(1 << pin->pin);
-    if(pin->pullup == PULLUP_ENABLE){
-      *(pin->port - 2) |= (1 << pin->pin);
-    }
+    *(pin->ddRegister) &= ~(1 << pin->pinNumber);
+    *(pin->portRegister) |= (1 << pin->pinNumber);
   }
 }
 
 void HAL_pinWrite(HAL_Pin* pin, HAL_PinLevel level){
   if (level == HIGH) {
-    *(pin->port) |= (1 << pin->pin);
+    *(pin->portRegister) |= (1 << pin->pinNumber);
   } else {
-    *(pin->port) &= ~(1 << pin->pin);
+    *(pin->portRegister) &= ~(1 << pin->pinNumber);
   }
 }
 
 HAL_PinLevel HAL_pinRead(HAL_Pin* pin){
-  return (*(pin->port - 2) & (1 << pin->pin)) ? HIGH : LOW; // PINx is two addresses below PORTx
+  return (*(pin->pinRegister) & (1 << pin->pinNumber)) ? HIGH : LOW;
 }
 
 void HAL_sleep(uint16_t ms){

@@ -15,6 +15,7 @@
 
 extern "C" {
 #include "I2C_HAL.h"
+#include "I2C_HAL_DESKTOP.h"
 }
 
 // TODO: Read this from the environment
@@ -39,18 +40,13 @@ std::string getCurrentTimestamp() {
   return ss.str();
 }
 
-HAL_Pin* HAL_pinSetup(HAL_Pin* newPin, uint16_t* port, uint8_t pin, HAL_PullupConfig pullup){
-  newPin->port = port;
-  newPin->pin = pin;
-  newPin->pullup = pullup;
-  newPin->direction = OUTPUT;
-  newPin->level = LOW;
-
+HAL_Pin* HAL_pinSetup(HAL_Pin* newPin, uint8_t pinNumber){
+  newPin->pinNumber = pinNumber;
   return newPin;
 }
 
 void HAL_setPinDirection(HAL_Pin* pin, HAL_PinDirection direction){
-  printf("Selecting pin %d direction: %s\n", pin->pin, direction == INPUT ? "INPUT" : "OUTPUT");
+  printf("Selecting pin %d direction: %s\n", pin->pinNumber, direction == INPUT ? "INPUT" : "OUTPUT");
   pin->direction = direction;
 }
 
@@ -189,7 +185,7 @@ void appendToFile(const std::string& filename, const rapidjson::Document& data){
 }
 
 void HAL_pinWrite(HAL_Pin* pin, HAL_PinLevel level) {
-  printf("Writing to pin %d: %d\n", pin->pin, level);
+  printf("Writing to pin %d: %d\n", pin->pinNumber, level);
   pin->level = level;
 
   // Get last line of the file
@@ -228,11 +224,13 @@ HAL_PinLevel HAL_pinRead(HAL_Pin* pin){
   for(auto& [name, pinPointer] : pinNameMap){
     if(pinPointer == pin){
       if(name.find("SCL") != std::string::npos){
-        return scl == 1 ? HAL_PinLevel::HIGH : HAL_PinLevel::LOW;
+        pin->level = scl == 1 ? HAL_PinLevel::HIGH : HAL_PinLevel::LOW;
       } else if(name.find("SDA") != std::string::npos){
-        return sda == 1 ? HAL_PinLevel::HIGH : HAL_PinLevel::LOW;
+        pin->level = sda == 1 ? HAL_PinLevel::HIGH : HAL_PinLevel::LOW;
       }
-
+      
+      return pin->level;
+      break;
     }
   }
 

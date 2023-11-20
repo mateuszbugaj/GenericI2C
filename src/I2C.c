@@ -79,12 +79,12 @@ void I2C_init(I2C_Config* config){
   I2C_log(cfg->role==MASTER?"MASTER":"SLAVE", 1);
 
   if(cfg->addr == 0 || cfg->addr > 127){
-    I2C_logNum("I2C address incorrect: ", cfg->addr, 1);
+    I2C_logNum("I2C addr bad", cfg->addr, 1);
     return;
   }
 
   if(cfg->timeUnit < TIME_UNIT_LIMIT){
-    I2C_logNum("I2C time unit too short: ", cfg->timeUnit, 1);
+    I2C_logNum("I2C TU short", cfg->timeUnit, 1);
     return;
   }
 
@@ -161,6 +161,10 @@ A pooling function for slaves to listen for incoming bits and conditions impleme
 |+LISTENING_FOR_START            +ACK_ADDRESS                        +READING_PAYLOAD  +ACK_PAYLOAD    -(release SDA)          |
 */
 
+void logState(uint8_t state){
+  I2C_logNum("State", state, 2);
+}
+
 void I2C_read(){
   HAL_PinLevel newSclLevel = HAL_pinRead(cfg->sclInPin);
   HAL_PinLevel newSdaLevel = HAL_pinRead(cfg->sdaInPin);
@@ -171,39 +175,38 @@ void I2C_read(){
     case START:
     /* First SCL impulse after START is used for state change to READING_ADDRESS */
     intCfg.state = READING_ADDRESS;
-    I2C_log("State: READING_ADDRESS", 4);
+    logState(intCfg.state);
     break;
 
     case READING_ADDRESS:
     intCfg.DSR[BYTE_SIZE - 1 - intCfg.DSRCounter] = newSdaLevel == HIGH ? 1 : 0;
-    I2C_logNum("Received bit", intCfg.DSR[BYTE_SIZE - 1 - intCfg.DSRCounter], 4);
+    I2C_logNum("Rx bit", intCfg.DSR[BYTE_SIZE - 1 - intCfg.DSRCounter], 4);
     intCfg.DSRCounter++;
 
     if(intCfg.DSRCounter == BYTE_SIZE){
       intCfg.receivedByte = binaryToDecimal(intCfg.DSR);
       intCfg.DSRCounter = 0;
-      uint8_t addr = intCfg.receivedByte & 0b11111110;
-      I2C_Data_Direction direction = intCfg.receivedByte & 0b00000001;
+      uint8_t addr = intCfg.receivedByte >> 1;
+      I2C_Data_Direction direction = intCfg.receivedByte & 0x01 ? READ : WRITE;
 
-      I2C_logNum("Received address: ", addr, 3);
+      I2C_logNum("Rx addr", addr, 3);
 
       if(addr == cfg->addr){
-        I2C_logNum("Address match: ", cfg->addr, 2);
+        I2C_log("Addr OK", 2);
 
         if(direction == WRITE){
-          I2C_log("Data direction: WRITE", 3);
           intCfg.dataDirection = WRITE;
         } else {
-          I2C_log("Data direction: READ", 3);
           intCfg.dataDirection = READ;
         }
+        I2C_logNum("Dir", intCfg.dataDirection, 3);
 
         pullDownPin(cfg->sdaOutPin);
         intCfg.state = ACK_ADDRESS;
-        I2C_log("State: ACK_ADDRESS", 4);
+        logState(intCfg.state);
       } else {
         intCfg.state = LISTENING_FOR_START;
-        I2C_log("State: LISTENING_FOR_START", 4);
+        logState(intCfg.state);
       }
     }
     break;
@@ -214,13 +217,13 @@ void I2C_read(){
 
     if(intCfg.dataDirection == WRITE){
       intCfg.state = READING_PAYLOAD;
-      I2C_log("State: READING_PAYLOAD", 4);
+      logState(intCfg.state);
     } else {
       intCfg.state = RESPONDING_WITH_PAYLOAD;
-      I2C_log("State: RESPONDING_WITH_PAYLOAD", 4);
+      logState(intCfg.state);
 
       uint8_t bitToSend = intCfg.byteToSendArr[BYTE_SIZE - 1 - intCfg.byteToSendCounter];
-      I2C_logNum("Responding with bit: ", bitToSend, 4);
+      I2C_logNum("Tx bit", bitToSend, 4);
       if(bitToSend == 1){
         releasePin(cfg->sdaOutPin);
       } else {
@@ -233,23 +236,23 @@ void I2C_read(){
 
     case READING_PAYLOAD:
     intCfg.DSR[BYTE_SIZE - 1 - intCfg.DSRCounter] = newSdaLevel == HIGH ? 1 : 0;
-    I2C_logNum("Received bit: ", intCfg.DSR[BYTE_SIZE - 1 - intCfg.DSRCounter], 4);
+    I2C_logNum("Rx bit", intCfg.DSR[BYTE_SIZE - 1 - intCfg.DSRCounter], 4);
     intCfg.DSRCounter++;
 
     if(intCfg.DSRCounter == BYTE_SIZE){
       intCfg.receivedByte = binaryToDecimal(intCfg.DSR);
       intCfg.newByteReceived = true;
-      I2C_logNum("Received payload: ", intCfg.receivedByte, 2);
+      I2C_logNum("Rx", intCfg.receivedByte, 2);
       pullDownPin(cfg->sdaOutPin);
       intCfg.state = ACK_PAYLOAD;
-      I2C_log("State: ACK_PAYLOAD", 4);
+      logState(intCfg.state);
     }
     break;
 
     case RESPONDING_WITH_PAYLOAD:
     ;
     uint8_t bitToSend = intCfg.byteToSendArr[BYTE_SIZE - 1 - intCfg.byteToSendCounter];
-    I2C_logNum("Responding with bit: ", bitToSend, 4);
+    I2C_logNum("Tx bit", bitToSend, 4);
     if(bitToSend == 1){
       releasePin(cfg->sdaOutPin);
     } else {
@@ -262,7 +265,7 @@ void I2C_read(){
       intCfg.byteToSendCounter = 0;
       releasePin(cfg->sdaOutPin);
       intCfg.state = READING_ACK;
-      I2C_log("State: READING_ACK", 4);
+      logState(intCfg.state);
     }
     break;
 
@@ -270,13 +273,13 @@ void I2C_read(){
     ;
     HAL_PinLevel ack = HAL_pinRead(cfg->sdaInPin);
     if(ack == LOW){
-      I2C_log("Master responded with ACK", 3);
+      I2C_log("RX ACK", 3);
     } else {
-      I2C_log("Master responded with N-ACK", 3);
+      I2C_log("RX N-ACK", 3);
     }
 
     intCfg.state = READING_PAYLOAD;
-    I2C_log("State: READING_PAYLOAD", 4);
+    logState(intCfg.state);
     break;
 
     case ACK_PAYLOAD:
@@ -284,7 +287,7 @@ void I2C_read(){
     releasePin(cfg->sdaOutPin);
     intCfg.DSRCounter = 0;
     intCfg.state = READING_PAYLOAD;
-    I2C_log("State: READING_PAYLOAD", 4);
+    logState(intCfg.state);
     break;
 
     default:
@@ -297,29 +300,29 @@ void I2C_read(){
 
     /* SDA falling edge (START conditions) */
     if(intCfg.sdaPinLevel == HIGH && newSdaLevel == LOW){
-      I2C_log("Detected START", 3);
+      I2C_log("START", 3);
       if(intCfg.state == LISTENING_FOR_START || intCfg.state == READING_PAYLOAD){
         intCfg.DSRCounter = 0;
         intCfg.byteToSendCounter = 0;
         intCfg.dataDirection = WRITE;
         intCfg.state = START;
-        I2C_log("State: START", 4);
+        logState(intCfg.state);
       }
     }
 
     /* SDA raising edge (STOP conditions) */
     if(intCfg.sdaPinLevel == LOW && newSdaLevel == HIGH){
-      I2C_log("Detected STOP", 3);
+      I2C_log("STOP", 3);
       if(intCfg.state == READING_PAYLOAD){
         if(intCfg.DSRCounter == 0){
-          I2C_log("Finished transmission", 2);
+          I2C_log("TX END", 2);
         } else {
           I2C_log("Unexpected STOP", 2);
         }
       }
 
       intCfg.state = LISTENING_FOR_START;
-      I2C_log("State: LISTENING_FOR_START", 4);
+      logState(intCfg.state);
       intCfg.DSRCounter = 0;
     }
   }
@@ -331,7 +334,7 @@ void I2C_read(){
 uint8_t I2C_receive(bool ack){
     uint8_t receivedBits[8];
     for(uint8_t i = BYTE_SIZE - 1; i != 255; i--){
-      I2C_logNum("Reading bit", i, 4);
+      I2C_logNum("Rx bit nr", i, 4);
       releasePin(cfg->sclOutPin);
       wait();
       HAL_PinLevel result = HAL_pinRead(cfg->sdaInPin);
@@ -340,14 +343,14 @@ uint8_t I2C_receive(bool ack){
       } else {
         receivedBits[i] = 0;
       }
-      I2C_logNum("Received", receivedBits[i], 4);
+      I2C_logNum("Rx bit", receivedBits[i], 4);
       pullDownPin(cfg->sclOutPin);
       wait();
     }
 
     uint8_t response = binaryToDecimal(receivedBits);
-    I2C_logNum("Got response: ", response, 2);
-    I2C_log("Sending ACK", 3);
+    I2C_logNum("RX", response, 2);
+    I2C_log("TX ACK", 3);
 
     // Respond with ACK or NACK
     if(ack){
@@ -368,25 +371,25 @@ uint8_t I2C_receive(bool ack){
     wait();
     releasePin(cfg->sclOutPin);
 
-    I2C_log("Stopped sending ACK", 4);
+    I2C_log("ACK TX STOP", 4);
 
     return response;
 }
 
 bool I2C_write(uint8_t payload){
   // TODO: check if the line is not busy
+  I2C_logNum("TX", payload, 2);
   if(cfg->role == SLAVE){
-    I2C_logNum("Byte to be send", payload, 2);
     decimalToBinary(payload, intCfg.byteToSendArr);
     return true;
   }
 
-  I2C_logNum("Sending byte", payload, 2);
   decimalToBinary(payload, intCfg.DSR);
 
   pullDownPin(cfg->sdaOutPin);
+  wait();
   for(uint8_t i = BYTE_SIZE - 1; i != 255; i--){
-    I2C_logNum("Sending bit", intCfg.DSR[i], 4);
+    I2C_logNum("TX bit", intCfg.DSR[i], 4);
     if(intCfg.DSR[i] == 0){
       releasePin(cfg->sclOutPin);
       wait();
@@ -415,9 +418,9 @@ bool I2C_write(uint8_t payload){
   wait();
 
   if(ack){
-    I2C_log("Got ACK", 3);
+    I2C_log("RX ACK", 3);
   } else {
-    I2C_log("No ACK", 3);
+    I2C_log("RX N-ACK", 3);
   }
   return ack;
 }
@@ -427,10 +430,6 @@ bool I2C_writeAddress(uint8_t address, I2C_Data_Direction direction){
 
   if(direction == READ){
     addr |= 0x01; // Set the R/W bit to 1 for READ
-    I2C_logNum("Sending address with READ", address , 2);
-  } else {
-    addr &= ~0x01; // Clear the R/W bit for WRITE
-    I2C_logNum("Sending address with WRITE", address , 2);
   }
 
   return I2C_write(addr);
@@ -457,7 +456,7 @@ bool I2C_newByteReceived(bool consume){
 
 /* Change of SDA HIGH -> LOW with SCL HIGH */
 void I2C_sendStartCondition() {
-  I2C_log("Sending START", 3);
+  I2C_log("TX START", 3);
   pullDownPin(cfg->sdaOutPin);
   wait();
   pullDownPin(cfg->sclOutPin);
@@ -469,7 +468,7 @@ void I2C_sendStartCondition() {
   Change of SDA HIGH -> LOW with SCL HIGH 
 */
 void I2C_sendRepeatedStartCondition() {
-  I2C_log("Sending RE-START", 3);
+  I2C_log("TX RE-START", 3);
   pullDownPin(cfg->sdaOutPin);
   waitShort();
   pullDownPin(cfg->sclOutPin);
@@ -486,7 +485,7 @@ void I2C_sendRepeatedStartCondition() {
 
 /* Change of SDA LOW -> HIGH with SCL HIGH */
 void I2C_sendStopCondition() {
-  I2C_log("Sending STOP", 3);
+  I2C_log("TX STOP", 3);
   pullDownPin(cfg->sdaOutPin);
   wait();
   releasePin(cfg->sclOutPin);

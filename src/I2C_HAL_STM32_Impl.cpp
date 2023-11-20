@@ -1,43 +1,36 @@
 #include <I2C_HAL.h>
+#include <I2C_HAL_STM32.h>
 
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/gpio.h>
 #include <libopencm3/stm32/usart.h>
 
-HAL_Pin* HAL_pinSetup(HAL_Pin* newPin, uint16_t* port, uint8_t pin, HAL_PullupConfig pullup){
-  newPin->port = port;
-  newPin->pin = pin;
-  newPin->pullup = pullup;
-  newPin->direction = OUTPUT;
-  newPin->level = LOW;
+HAL_Pin* HAL_pinSetup(HAL_Pin* newPin, uint32_t portRegister, uint16_t pinNumber){
+  newPin->portRegister = portRegister;
+  newPin->pinNumber = pinNumber;
   return newPin;
 }
 
 void HAL_setPinDirection(HAL_Pin* pin, HAL_PinDirection direction){
   pin->direction = direction;
   if(direction == INPUT){
-    gpio_set_mode(*(pin->port), GPIO_MODE_INPUT, GPIO_CNF_INPUT_PULL_UPDOWN, pin->pin);
-    if(pin->pullup == PULLUP_ENABLE){
-      gpio_set(*(pin->port), pin->pin);
-    } else {
-      gpio_clear(*(pin->port), pin->pin);
-    }
+    gpio_set_mode(pin->portRegister, GPIO_MODE_INPUT, GPIO_CNF_INPUT_FLOAT, pin->pinNumber);
   } else {
-    gpio_set_mode(*(pin->port), GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, pin->pin);
+    gpio_set_mode(pin->portRegister, GPIO_MODE_OUTPUT_2_MHZ, GPIO_CNF_OUTPUT_PUSHPULL, pin->pinNumber);
   }
 }
 
 void HAL_pinWrite(HAL_Pin* pin, HAL_PinLevel level){
   pin->level = level;
   if(level == HIGH){
-    gpio_set(*(pin->port), pin->pin);
+    gpio_set(pin->portRegister, pin->pinNumber);
   } else {
-    gpio_clear(*(pin->port), pin->pin);
+    gpio_clear(pin->portRegister, pin->pinNumber);
   }
 }
 
 HAL_PinLevel HAL_pinRead(HAL_Pin* pin){
-  if(gpio_get(*(pin->port), pin->pin)){
+  if(gpio_get(pin->portRegister, pin->pinNumber)){
     return HIGH;
   } else {
     return LOW;
@@ -46,7 +39,7 @@ HAL_PinLevel HAL_pinRead(HAL_Pin* pin){
 
 void HAL_sleep(uint16_t ms){
   for(uint16_t i = 0; i < ms; i++){
-    for(uint16_t j = 0; j < 1000; j++){
+    for(uint16_t j = 0; j < 10000; j++){
       __asm__("nop");
     }
   }
