@@ -1,6 +1,6 @@
 # GenericI2C
 
-A bit-banged implementation of the I2C protocol for receivers and transmitters. Uses basic HAL library to operate microcontroller pins. Doesn't use timers and ISR. </br>
+A software-based implementation of the I2C protocol for receivers and transmitters. Uses basic HAL library implementation to manage bus on the selected platform. Doesn't use timers and ISR. </br>
 Max speed of 2 bytes per second without logging.</br>
 Currently works with 4 GPIO pins per microcontroler (2 for input and output).
 
@@ -25,22 +25,33 @@ MASTER                                  SLAVE
 Code snippet:
 
 ```C++
-HALPin sclOutPin = { .port = &PORTD, .pin = 7, .pullup = PULLUP_DISABLE };
-HALPin sdaOutPin = { .port = &PORTD, .pin = 6, .pullup = PULLUP_DISABLE };
-HALPin sclInPin = { .port = &PORTD, .pin = 5, .pullup = PULLUP_ENABLE };
-HALPin sdaInPin = { .port = &PORTB, .pin = 7, .pullup = PULLUP_ENABLE };
+#define MASTER_ADDR 51
+#define SLAVE_ADDR 52
+HAL_Pin sclOutPin, sdaOutPin, sclInPin, sdaInPin;
 
 I2C_Config i2c_config = {
-    .respondToGeneralCall = true,
-    .timeUnit = 100, // 20 -> 2 bytes per second
-    .role = MASTER;
-    .addr = MASTER_ADDR;
-    .loggingLevel = 3};
+  .loggingLevel = 4,
+  .sclOutPin = HAL_pinSetup(&sclOutPin, &PORTD, &PIND, 7, &DDRD),
+  .sdaOutPin = HAL_pinSetup(&sdaOutPin, &PORTD, &PIND, 6, &DDRD),
+  .sclInPin = HAL_pinSetup(&sclInPin, &PORTD, &PIND, 5, &DDRD),
+  .sdaInPin = HAL_pinSetup(&sdaInPin, &PORTB, &PINB, 7, &DDRB),
+  .timeUnit = 200,
+  .print_str = &usart_print,
+  .print_num = &usart_print_num,
+};
 
-i2c_config.sclOutPin = sclOutPin;
-i2c_config.sdaOutPin = sdaOutPin;
-i2c_config.sclInPin = sclInPin;
-i2c_config.sdaInPin = sdaInPin;
+HAL_Pin rolePin;
+HAL_pinSetup(&rolePin, &PORTB, &PINB, 2, &DDRB);
+HAL_setPinDirection(&rolePin, INPUT);
+
+if(HAL_pinRead(&rolePin) == LOW){
+  i2c_config.role = MASTER;
+  i2c_config.addr = MASTER_ADDR;
+  _delay_ms(500);
+} else {
+  i2c_config.role = SLAVE;
+  i2c_config.addr = SLAVE_ADDR;
+}
 
 I2C_init(&i2c_config);
 
