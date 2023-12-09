@@ -3,7 +3,8 @@
 
 typedef enum {
     OUTPUT = 0,
-    INPUT = 1
+    INPUT = 1,
+    INPUT_OUTPUT = 2
 } HAL_PinDirection;
 
 typedef enum {
