@@ -10,9 +10,15 @@ extern "C" {
 }
 
 volatile uint8_t pinCounter = 0;
-HAL_Pin* scl = HAL_pinSetup(SCL);
-HAL_Pin* sda = HAL_pinSetup(SDA);
+HAL_Pin* scl;
+HAL_Pin* sda;
 std::vector<HAL_Pin*> registeredPins;
+
+void I2C_HAL_init(){
+  printf("Initializing I2C HAL\n");
+  scl = HAL_pinSetup(SCL);
+  sda = HAL_pinSetup(SDA);
+}
 
 HAL_Pin* HAL_pinSetup(HAL_PinRole pinRole){
   std::string roleString;

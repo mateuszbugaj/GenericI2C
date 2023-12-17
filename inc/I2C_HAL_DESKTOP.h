@@ -18,6 +18,7 @@ struct HAL_Pin {
   HAL_PinRole pinRole;
 };
 
+void I2C_HAL_init();
 HAL_Pin* HAL_pinSetup(HAL_PinRole pinRole);
 HAL_Pin* HAL_SclPin();
 HAL_Pin* HAL_SdaPin();
